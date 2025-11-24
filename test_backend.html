@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Backend - ConnectSigns</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      video {
+        width: 100%;
+        max-width: 640px;
+        border: 2px solid #333;
+        transform: scaleX(-1);
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f0f0f0;
+        border-radius: 5px;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 15px;
+        background: #e8f5e9;
+        border-radius: 5px;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      .log {
+        margin-top: 20px;
+        padding: 10px;
+        background: #000;
+        color: #0f0;
+        font-family: monospace;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🤟 Test Backend ConnectSigns</h1>
+
+    <div>
+      <button onclick="startCamera()">📹 Iniciar Cámara</button>
+      <button onclick="stopCamera()">⏹ Detener Cámara</button>
+      <button onclick="startDetection()">🔍 Iniciar Detección</button>
+      <button onclick="stopDetection()">⏸ Detener Detección</button>
+    </div>
+
+    <div style="margin-top: 20px">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" style="display: none"></canvas>
+    </div>
+
+    <div id="status">Estado: Esperando...</div>
+    <div id="result">Resultado: ---</div>
+
+    <div class="log" id="log"></div>
+
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const statusDiv = document.getElementById("status");
+      const resultDiv = document.getElementById("result");
+      const logDiv = document.getElementById("log");
+
+      let stream = null;
+      let ws = null;
+      let detectionInterval = null;
+
+      function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+        console.log(message);
+      }
+
+      async function startCamera() {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 },
+          });
+          video.srcObject = stream;
+          statusDiv.textContent = "✓ Cámara iniciada";
+          log("✓ Cámara iniciada exitosamente");
+        } catch (error) {
+          statusDiv.textContent = "✗ Error al iniciar cámara";
+          log("✗ Error: " + error.message);
+        }
+      }
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          video.srcObject = null;
+          statusDiv.textContent = "Cámara detenida";
+          log("Cámara detenida");
+        }
+      }
+
+      function startDetection() {
+        if (!stream) {
+          alert("Primero inicia la cámara");
+          return;
+        }
+
+        // Conectar WebSocket
+        ws = new WebSocket("ws://localhost:8000/ws/detect");
+
+        ws.onopen = () => {
+          statusDiv.textContent = "✓ Conectado al servidor";
+          log("✓ WebSocket conectado");
+
+          // Iniciar envío de frames
+          detectionInterval = setInterval(sendFrame, 100);
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          log("📩 Respuesta recibida: " + JSON.stringify(data));
+
+          if (data.type === "detection") {
+            const result = data.data;
+            if (result.sign) {
+              resultDiv.textContent = `Seña: ${result.sign} (${(
+                result.confidence * 100
+              ).toFixed(1)}%)`;
+              resultDiv.style.background = "#c8e6c9";
+            } else {
+              resultDiv.textContent = result.message;
+              resultDiv.style.background = "#fff9c4";
+            }
+            statusDiv.textContent = `${result.message} | Buffer: ${result.buffer_status}`;
+          }
+        };
+
+        ws.onerror = (error) => {
+          log("✗ Error WebSocket: " + error);
+          statusDiv.textContent = "✗ Error de conexión";
+        };
+
+        ws.onclose = () => {
+          log("WebSocket cerrado");
+          statusDiv.textContent = "Desconectado";
+        };
+      }
+
+      function stopDetection() {
+        if (detectionInterval) {
+          clearInterval(detectionInterval);
+          detectionInterval = null;
+        }
+        if (ws) {
+          ws.close();
+          ws = null;
+        }
+        statusDiv.textContent = "Detección detenida";
+        log("Detección detenida");
+      }
+
+      function sendFrame() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          log("⚠ WebSocket no está abierto");
+          return;
+        }
+
+        const context = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0);
+
+        const imageData = canvas.toDataURL("image/jpeg", 0.8);
+
+        ws.send(
+          JSON.stringify({
+            type: "frame",
+            image: imageData,
+          })
+        );
+
+        log("📸 Frame enviado (" + imageData.length + " bytes)");
+      }
+
+      // Limpiar al cerrar
+      window.addEventListener("beforeunload", () => {
+        stopDetection();
+        stopCamera();
+      });
+    </script>
+  </body>
+</html>
