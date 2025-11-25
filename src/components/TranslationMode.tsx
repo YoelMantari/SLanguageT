@@ -7,6 +7,8 @@ import {
   Send,
   VideoOff,
   Video,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -24,6 +26,7 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
   const animationFrameRef = useRef<number | null>(null);
   const isDetectingRef = useRef<boolean>(false);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSpokenSentenceRef = useRef<string>(""); // Referencia para evitar repetir la misma frase
 
   // Estado para Seña a Voz/Texto (mitad superior)
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -32,6 +35,11 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
   const [detectionStatus, setDetectionStatus] = useState("");
   const [confidence, setConfidence] = useState(0);
 
+  // Estado para construcción de oraciones
+  const [signsBuffer, setSignsBuffer] = useState<string[]>([]);
+  const [naturalSentence, setNaturalSentence] = useState("");
+  const [lastDetectedSign, setLastDetectedSign] = useState("");
+
   // Estado para Voz/Texto a Seña (mitad inferior)
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -39,6 +47,7 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
 
   // Constantes
   const WS_URL = "ws://localhost:8000/ws/detect";
+  const API_URL = "http://localhost:8000";
   const DETECTION_INTERVAL = 100; // ms entre detecciones
 
   // Inicializar/detener cámara
@@ -125,7 +134,7 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
               console.log(
                 `✓✓✓ SEÑA DETECTADA: ${result.sign} (${result.confidence})`
               );
-              setTranslatedText(result.sign);
+              setLastDetectedSign(result.sign);
               setConfidence(result.confidence);
               setDetectionStatus(`✓ Seña: ${result.sign}`);
             } else if (result.buffer_status) {
@@ -137,6 +146,22 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
             setDetectionStatus(
               "❌ No se detecta mano - Acerca tu mano a la cámara"
             );
+          }
+
+          // Actualizar datos de construcción de oraciones
+          if (result.sentence) {
+            const sentenceData = result.sentence;
+            if (sentenceData.signs_buffer) {
+              setSignsBuffer(sentenceData.signs_buffer);
+            }
+            if (sentenceData.natural_sentence) {
+              setNaturalSentence(sentenceData.natural_sentence);
+              setTranslatedText(sentenceData.natural_sentence);
+            }
+            // Si hay señas pero no oración, mostrar las señas crudas
+            if (!sentenceData.natural_sentence && sentenceData.raw_signs) {
+              setTranslatedText(sentenceData.raw_signs);
+            }
           }
         }
       } catch (error) {
@@ -303,10 +328,49 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      window.speechSynthesis.cancel(); // Detener cualquier audio pendiente
     };
   }, []);
 
-  // Funciones para Seña a Voz/Texto
+  // Efecto para reproducción automática de voz cuando se genera una nueva oración
+  useEffect(() => {
+    if (naturalSentence && naturalSentence !== lastSpokenSentenceRef.current) {
+      console.log("🔊 Reproduciendo automáticamente:", naturalSentence);
+
+      // Cancelar cualquier reproducción anterior para evitar superposiciones
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(naturalSentence);
+      utterance.lang = "es-ES";
+      utterance.rate = 1.0; // Velocidad normal
+
+      // Limpiar automáticamente después de hablar
+      utterance.onend = () => {
+        console.log("✅ Audio terminado, limpiando buffer...");
+        // Pequeño delay para que el usuario vea el texto un momento
+        setTimeout(async () => {
+          try {
+            await fetch(`${API_URL}/api/sentence/clear`, { method: "POST" });
+            setSignsBuffer([]);
+            setNaturalSentence("");
+            setTranslatedText("");
+            setLastDetectedSign("");
+            lastSpokenSentenceRef.current = "";
+          } catch (error) {
+            console.error("Error limpiando buffer:", error);
+          }
+        }, 1500); // Esperar 1.5s antes de limpiar
+      };
+
+      window.speechSynthesis.speak(utterance);
+
+      // Actualizar referencia
+      lastSpokenSentenceRef.current = naturalSentence;
+    } else if (!naturalSentence) {
+      // Resetear si se limpia la oración
+      lastSpokenSentenceRef.current = "";
+    }
+  }, [naturalSentence]); // Funciones para Seña a Voz/Texto
   const handlePlayVoice = () => {
     if (!translatedText) return;
 
@@ -314,6 +378,34 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
     const utterance = new SpeechSynthesisUtterance(translatedText);
     utterance.lang = "es-ES";
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Funciones para controlar la construcción de oraciones
+  const handleClearSentence = async () => {
+    try {
+      await fetch(`${API_URL}/api/sentence/clear`, { method: "POST" });
+      setSignsBuffer([]);
+      setNaturalSentence("");
+      setTranslatedText("");
+      setLastDetectedSign("");
+    } catch (error) {
+      console.error("Error limpiando buffer:", error);
+    }
+  };
+
+  const handleForceBuildSentence = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/sentence/build`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (data.success && data.sentence) {
+        setNaturalSentence(data.sentence);
+        setTranslatedText(data.sentence);
+      }
+    } catch (error) {
+      console.error("Error construyendo oración:", error);
+    }
   };
 
   // Funciones para Voz/Texto a Seña
@@ -411,25 +503,79 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
         </div>
 
         {/* Área de Salida de Texto */}
-        <div className="shrink-0 px-4 py-3 bg-white">
+        <div className="shrink-0 px-4 py-3 bg-white space-y-2">
+          {/* Señas detectadas (chips) */}
+          {signsBuffer.length > 0 && (
+            <div className="flex flex-wrap gap-1 items-center">
+              <span className="text-xs text-gray-500 mr-1">Señas:</span>
+              {signsBuffer.map((sign, index) => (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-[#50E3C2]/20 text-[#2D8B73] text-xs rounded-full"
+                >
+                  {sign}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Oración traducida */}
           <div className="min-h-[60px] bg-[#F2F2F7] rounded-xl p-3 flex items-center justify-between">
             {translatedText ? (
               <>
-                <p className="flex-1 font-medium">{translatedText}</p>
-                <Button
-                  onClick={handlePlayVoice}
-                  size="icon"
-                  className="ml-3 shrink-0 bg-[#50E3C2] hover:bg-[#40D3B2] text-white rounded-full"
-                  aria-label="Reproducir voz"
-                >
-                  <Volume2 size={20} />
-                </Button>
+                <div className="flex-1">
+                  {naturalSentence && (
+                    <p className="font-medium text-[#333]">{naturalSentence}</p>
+                  )}
+                  {!naturalSentence && translatedText && (
+                    <p className="text-[#666]">{translatedText}</p>
+                  )}
+                  {lastDetectedSign && (
+                    <p className="text-xs text-[#50E3C2] mt-1">
+                      Última seña: {lastDetectedSign}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <Button
+                    onClick={handlePlayVoice}
+                    size="icon"
+                    className="shrink-0 bg-[#50E3C2] hover:bg-[#40D3B2] text-white rounded-full w-9 h-9"
+                    aria-label="Reproducir voz"
+                  >
+                    <Volume2 size={18} />
+                  </Button>
+                </div>
               </>
             ) : (
               <p className="text-[#8E8E93] text-sm">
                 La traducción aparecerá aquí
               </p>
             )}
+          </div>
+
+          {/* Botones de control de oración */}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleForceBuildSentence}
+              disabled={signsBuffer.length < 2}
+              size="sm"
+              variant="outline"
+              className="flex-1 border-[#4A90E2] text-[#4A90E2] hover:bg-[#4A90E2] hover:text-white"
+            >
+              <RefreshCw size={16} className="mr-1" />
+              Traducir
+            </Button>
+            <Button
+              onClick={handleClearSentence}
+              disabled={signsBuffer.length === 0}
+              size="sm"
+              variant="outline"
+              className="flex-1 border-red-400 text-red-500 hover:bg-red-500 hover:text-white"
+            >
+              <Trash2 size={16} className="mr-1" />
+              Limpiar
+            </Button>
           </div>
         </div>
 
