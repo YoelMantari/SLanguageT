@@ -9,6 +9,7 @@ import {
   Video,
   Trash2,
   RefreshCw,
+  StopCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -144,7 +145,7 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
             }
           } else {
             setDetectionStatus(
-              "❌ No se detecta mano - Acerca tu mano a la cámara"
+              "No se detecta mano - Acerca tu mano a la cámara"
             );
           }
 
@@ -295,12 +296,23 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       setDetectionStatus("Detección detenida");
     } else {
       console.log("▶ Iniciando detección...");
+
+      // Limpiar datos anteriores
+      setTranslatedText("");
+      setSignsBuffer([]);
+      setNaturalSentence("");
+      setLastDetectedSign("");
+
+      // Limpiar buffer del backend
+      fetch(`${API_URL}/api/sentence/clear`, { method: "POST" }).catch((err) =>
+        console.error("Error clearing backend buffer:", err)
+      );
+
       console.log(
         "Estableciendo isDetecting = true y isDetectingRef.current = true"
       );
       setIsDetecting(true);
       isDetectingRef.current = true;
-      setTranslatedText("");
 
       console.log("Conectando WebSocket...");
       connectWebSocket();
@@ -331,28 +343,6 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       window.speechSynthesis.cancel(); // Detener cualquier audio pendiente
     };
   }, []);
-
-  // Efecto para reproducción automática de voz cuando se genera una nueva oración
-  useEffect(() => {
-    if (naturalSentence && naturalSentence !== lastSpokenSentenceRef.current) {
-      console.log("🔊 Reproduciendo automáticamente:", naturalSentence);
-
-      // Cancelar cualquier reproducción anterior para evitar superposiciones
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(naturalSentence);
-      utterance.lang = "es-ES";
-      utterance.rate = 1.0; // Velocidad normal
-
-      window.speechSynthesis.speak(utterance);
-
-      // Actualizar referencia
-      lastSpokenSentenceRef.current = naturalSentence;
-    } else if (!naturalSentence) {
-      // Resetear si se limpia la oración
-      lastSpokenSentenceRef.current = "";
-    }
-  }, [naturalSentence]);
 
   // Funciones para Seña a Voz/Texto
 
@@ -415,6 +405,34 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
     }, 4000);
   };
 
+  // Efecto para reproducción automática de voz cuando se genera una nueva oración
+  useEffect(() => {
+    if (naturalSentence && naturalSentence !== lastSpokenSentenceRef.current) {
+      console.log("🔊 Reproduciendo automáticamente:", naturalSentence);
+
+      // Cancelar cualquier reproducción anterior para evitar superposiciones
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(naturalSentence);
+      utterance.lang = "es-ES";
+      utterance.rate = 1.0; // Velocidad normal
+
+      // Cuando termine de hablar, limpiar la oración automáticamente
+      utterance.onend = () => {
+        console.log("✅ Audio terminado, limpiando oración...");
+        handleClearSentence();
+      };
+
+      window.speechSynthesis.speak(utterance);
+
+      // Actualizar referencia
+      lastSpokenSentenceRef.current = naturalSentence;
+    } else if (!naturalSentence) {
+      // Resetear si se limpia la oración
+      lastSpokenSentenceRef.current = "";
+    }
+  }, [naturalSentence]);
+
   return (
     <div className="flex flex-col h-full bg-white pb-16">
       {/* Canvas oculto para capturar frames */}
@@ -435,9 +453,9 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       </div>
 
       {/* ========== MITAD SUPERIOR: SEÑA A VOZ/TEXTO ========== */}
-      <div className="flex flex-col h-1/2 border-b-4 border-[#F2F2F7]">
+      <div className="flex flex-col h-1/2 border-b-4 border-[#F2F2F7] overflow-y-auto min-h-0">
         {/* Vista de Cámara */}
-        <div className="relative flex-1 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden">
+        <div className="relative flex-1 bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden min-h-[200px]">
           {/* Video de la cámara */}
           <video
             ref={videoRef}
@@ -569,11 +587,11 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
           <div className="flex gap-2">
             <Button
               onClick={toggleCamera}
-              className={`flex-1 py-4 ${
-                isCameraOn
-                  ? "bg-red-500 hover:bg-red-600"
-                  : "bg-[#4A90E2] hover:bg-[#3A7BC8]"
-              } text-white rounded-xl flex items-center justify-center gap-2`}
+              style={{
+                backgroundColor: isCameraOn ? "#EF4444" : "#4A90E2",
+                color: "white",
+              }}
+              className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 border-none"
             >
               {isCameraOn ? (
                 <>
@@ -592,13 +610,13 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
           <Button
             onClick={toggleDetection}
             disabled={!isCameraOn}
-            className={`w-full py-5 ${
-              isDetecting
-                ? "bg-orange-500 hover:bg-orange-600"
-                : "bg-[#50E3C2] hover:bg-[#40D3B2]"
-            } text-white rounded-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed`}
+            style={{
+              backgroundColor: isDetecting ? "#F97316" : "#50E3C2",
+              color: "white",
+            }}
+            className="w-full py-3 rounded-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 border-none"
           >
-            <Camera size={24} />
+            {isDetecting ? <StopCircle size={24} /> : <Camera size={24} />}
             {isDetecting ? "Detener Detección" : "Iniciar Detección"}
           </Button>
         </div>
