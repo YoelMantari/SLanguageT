@@ -3,6 +3,9 @@ node_modules/
 .venv/
 venv/
 env/
+backend/debug_frames/
+*.jpg
+
 
 # Python
 __pycache__/
