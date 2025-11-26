@@ -43,6 +43,8 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+src/apikey.py
+backend/.env
 
 # IDEs
 .vscode/
