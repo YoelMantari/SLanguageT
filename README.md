@@ -1,4 +1,3 @@
-
 # Traductor de Lengua de Señas
 
 Aplicación web interactiva para traducir lengua de señas en tiempo real utilizando inteligencia artificial y visión por computadora.
@@ -14,6 +13,7 @@ Este proyecto permite la comunicación bidireccional entre personas que utilizan
 ### Tecnologías Utilizadas
 
 **Frontend:**
+
 - React 18
 - TypeScript
 - Vite
@@ -22,6 +22,7 @@ Este proyecto permite la comunicación bidireccional entre personas que utilizan
 - Radix UI (componentes de interfaz)
 
 **Backend:**
+
 - Python 3.11
 - FastAPI
 - MediaPipe (detección de manos y poses)
@@ -111,6 +112,7 @@ echo "GROQ_API_KEY=tu_clave_api_aqui" > .env
 ```
 
 Para obtener una clave API de Groq:
+
 1. Visita https://console.groq.com/
 2. Crea una cuenta o inicia sesión
 3. Genera una nueva API key
@@ -224,4 +226,3 @@ Este proyecto fue desarrollado como parte del curso de Interacción Humano-Compu
 ## Licencia
 
 Este proyecto es de código abierto y está disponible para uso educativo.
-  
