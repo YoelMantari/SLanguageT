@@ -344,24 +344,6 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       utterance.lang = "es-ES";
       utterance.rate = 1.0; // Velocidad normal
 
-      // Limpiar automáticamente después de hablar
-      utterance.onend = () => {
-        console.log("✅ Audio terminado, limpiando buffer...");
-        // Pequeño delay para que el usuario vea el texto un momento
-        setTimeout(async () => {
-          try {
-            await fetch(`${API_URL}/api/sentence/clear`, { method: "POST" });
-            setSignsBuffer([]);
-            setNaturalSentence("");
-            setTranslatedText("");
-            setLastDetectedSign("");
-            lastSpokenSentenceRef.current = "";
-          } catch (error) {
-            console.error("Error limpiando buffer:", error);
-          }
-        }, 1500); // Esperar 1.5s antes de limpiar
-      };
-
       window.speechSynthesis.speak(utterance);
 
       // Actualizar referencia
@@ -370,7 +352,10 @@ export function TranslationMode({ onBack }: TranslationModeProps) {
       // Resetear si se limpia la oración
       lastSpokenSentenceRef.current = "";
     }
-  }, [naturalSentence]); // Funciones para Seña a Voz/Texto
+  }, [naturalSentence]);
+
+  // Funciones para Seña a Voz/Texto
+
   const handlePlayVoice = () => {
     if (!translatedText) return;
 
