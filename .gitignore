@@ -6,7 +6,6 @@ env/
 backend/debug_frames/
 *.jpg
 
-
 # Python
 __pycache__/
 *.py[cod]
@@ -59,3 +58,54 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Archivos temporales y no usados
+# Scripts de conversión de modelo (temporales de debugging)
+Traine/convert_model.py
+Traine/fix_model.py
+Traine/rebuild_model.py
+Traine/load_from_h5.py
+Traine/modelo_senas_fixed.keras
+Traine/modelo_senas_rebuilt.keras
+Traine/config.json
+Traine/metadata.json
+Traine/model.weights.h5
+Traine/Senia.py
+Traine/test2.py
+
+# Avatar duplicado (standalone no integrado)
+avatar/avatar-lsp-3d/
+avatar/avatar-lsp-3d.zip
+
+# Aplicación Streamlit standalone (no usada)
+src/Traductor_Natural.py
+
+# Componentes UI sin usar
+src/components/ui/sidebar.tsx
+src/components/ui/menubar.tsx
+src/components/ui/breadcrumb.tsx
+src/components/ui/collapsible.tsx
+src/components/ui/command.tsx
+src/components/ui/context-menu.tsx
+src/components/ui/drawer.tsx
+src/components/ui/hover-card.tsx
+src/components/ui/input-otp.tsx
+src/components/ui/navigation-menu.tsx
+src/components/ui/pagination.tsx
+src/components/ui/popover.tsx
+src/components/ui/radio-group.tsx
+src/components/ui/resizable.tsx
+src/components/ui/scroll-area.tsx
+src/components/ui/sheet.tsx
+src/components/ui/skeleton.tsx
+src/components/ui/slider.tsx
+src/components/ui/sonner.tsx
+src/components/ui/switch.tsx
+src/components/ui/table.tsx
+src/components/ui/accordion.tsx
+src/components/ui/aspect-ratio.tsx
+src/components/ui/carousel.tsx
+src/components/ui/chart.tsx
+src/components/ui/checkbox.tsx
+src/components/ui/form.tsx
+src/components/ui/separator.tsx

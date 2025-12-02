@@ -91,12 +91,22 @@ class SignLanguageDetector:
         """Cargar el modelo de TensorFlow"""
         try:
             import tensorflow as tf
+            
+            print(f"📂 Cargando modelo desde: {self.model_path}")
+            print(f"📦 TensorFlow: {tf.__version__}")
+            
+            # Cargar modelo (Keras 3 compatible)
             self.model = tf.keras.models.load_model(self.model_path)
-            print(f"Modelo cargado exitosamente desde {self.model_path}")
-            print(f"Input shape: {self.model.input_shape}")
-            print(f"Output shape: {self.model.output_shape}")
+            
+            print(f"✅ Modelo cargado exitosamente")
+            print(f"📊 Input shape: {self.model.input_shape}")
+            print(f"📊 Output shape: {self.model.output_shape}")
+            print(f"📊 Total de clases: {self.model.output_shape[-1]}")
+            
         except Exception as e:
-            print(f"Error cargando modelo: {str(e)}")
+            print(f"❌ Error cargando modelo: {str(e)}")
+            import traceback
+            traceback.print_exc()
             self.model = None
     
     def get_available_signs(self) -> List[str]:
@@ -250,9 +260,11 @@ class SignLanguageDetector:
                     
                     # Ajustar secuencia
                     seq_for_model = self.fix_sequence(self.sequence)
+                    print(f"[DEBUG] Secuencia ajustada shape: {seq_for_model.shape}")
                     
                     # Hacer predicción
                     sign_name, prob = self.predict_sign(seq_for_model)
+                    print(f"[DEBUG] Predicción: {sign_name} con confianza {prob:.3f} (umbral: {self.CONFIDENCE_THRESHOLD})")
                     
                     # Solo actualizar si la confianza es buena
                     if prob >= self.CONFIDENCE_THRESHOLD:
@@ -266,6 +278,8 @@ class SignLanguageDetector:
                             # Agregar al constructor de oraciones
                             if self.sentence_builder:
                                 self.sentence_builder.add_sign(sign_name)
+                    else:
+                        print(f"[DEBUG] Confianza insuficiente: {prob:.3f} < {self.CONFIDENCE_THRESHOLD}")
                     
                     # Reset del contador de frames
                     self.frames_since_last_pred = 0
